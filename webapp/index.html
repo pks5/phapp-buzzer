@@ -13,6 +13,14 @@
   <body>
     <h1>Hello, world!</h1>
 
+    <button id="loginBtn" class="btn btn-primary">Login</button>
+
+    <script>
+        document.getElementById("loginBtn").addEventListener("click", function(){
+           let authUrl = 'http://localhost/oauth/authorize?response_type=token&client_id=phapp_buzzer&redirect_uri=' + encodeURIComponent('https://pks5.github.io/phapp-buzzer/webapp/');
+           location.href = authUrl;
+        });
+    </script>
     <!-- Optional JavaScript; choose one of the two! -->
 
     <!-- Option 1: Bootstrap Bundle with Popper -->
