@@ -17,7 +17,7 @@
 
     <script>
         document.getElementById("loginBtn").addEventListener("click", function(){
-           let authUrl = 'http://localhost/oauth/authorize?response_type=token&client_id=phapp_buzzer&redirect_uri=' + encodeURIComponent('https://pks5.github.io/phapp-buzzer/webapp/');
+           let authUrl = 'https://id.featurehub.net/oauth/authorize?response_type=token&client_id=phapp_buzzer&redirect_uri=' + encodeURIComponent('https://pks5.github.io/phapp-buzzer/webapp/');
            location.href = authUrl;
         });
     </script>
