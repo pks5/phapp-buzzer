@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <!-- Required meta tags -->
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.1/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-+0n0xVW2eSR5OomGNYDnhzAbDsOXxcvSN1TPprVMTNDbiYZCxYbOOl7+AMvyTG2x" crossorigin="anonymous">
+
+    <title>RGB LED - Raspilab Experiments</title>
+
+    <style>
+      #color{
+        width:128px;
+        height:128px;
+        margin:1rem auto;
+      }
+        .color-button{
+          width:24px;
+          height:24px;
+        }
+    </style>
+  </head>
+  <body>
+    <h1>RGB LED</h1>
+
+    <button id="loginBtn" class="btn btn-primary">Login</button>
+    <button id="extractBtn" class="btn btn-primary">Extract</button>
+    <button id="testBtn" class="btn btn-primary">Test</button>
+
+    <select class="form-select" id="deviceSelect">
+      <option selected>Select Device</option>
+    </select>
+
+    <div id="color">
+
+    </div>
+
+    <div class="buttons">
+      <button class="color-button" data-color="red"></button>
+      <button class="color-button" data-color="green"></button>
+      <button class="color-button" data-color="blue"></button>
+      <button class="color-button" data-color="yellow"></button>
+      <button class="color-button" data-color="magenta"></button>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@stomp/stompjs@6.1.0/bundles/stomp.umd.min.js"></script>
+
+    <script>
+        let sTargetAppId = "net.featurehub.phapp.sys";
+        let sTargetScriptName = "rgbled.py";
+        let sSourceAppId = "net.featurehub.system.check.led";
+
+        let scriptLocation = 'https://my.featurehub.net/lib/v1/fhub.js';
+
+        if(location.hostname.indexOf('.localnet') !== -1){
+            scriptLocation = 'http://my.featurehub.localnet:8787/lib/v1/fhub.js';
+        }
+
+        const script = document.createElement('script');
+        script.src = scriptLocation;
+        document.body.appendChild(script);
+
+        document.getElementById("loginBtn").addEventListener("click", function(){
+           FeatureHub.getInstance().requestToken('phapp_buzzer', location.origin + location.pathname);
+        });
+
+        document.getElementById("extractBtn").addEventListener("click", function(){
+          FeatureHub.getInstance().extractToken();
+        });
+
+        let aColorFields = document.querySelectorAll(".color-button");
+        for(let i=0; i < aColorFields.length; i++){
+          aColorFields[i].style.backgroundColor = aColorFields[i].dataset.color;
+          aColorFields[i].addEventListener("click", function(){
+            let sFrom = "fhtp://featurehub/webapp/" + sSourceAppId,
+                sTo = "fhtp://featurehub/device/" + elSelect.value + "/" + sTargetAppId + "/" + sTargetScriptName;
+            FeatureHub.getInstance().sendToScript(sFrom, sTo, { "mode":"ON", color:this.dataset.color });
+          });
+        }
+        
+        let elSelect = document.getElementById("deviceSelect");
+        
+        let onReceiveDevices = function(oData){  
+          for (let i = 0; i<oData.devices.length; i++){
+            let oDevice = oData.devices[i], 
+                elOpt = document.createElement('option');
+            elOpt.value = oDevice.machineId;
+            elOpt.innerHTML = oDevice.hostName + " (" + oDevice.lastComConnectDate + ")";
+            elSelect.appendChild(elOpt);
+          }
+        };
+
+        
+
+        let onReceiveData = function(oData){
+            console.log('S', oData);
+            
+            let sMode = oData.body.status.mode;
+            if(sMode === "ON"){
+              document.getElementById("color").style.backgroundColor = oData.body.status.color;
+            }
+            else if(sMode  === "OFF"){
+              document.getElementById("color").style.backgroundColor = "transparent";
+            }
+            //let currentColor = pickr.getColor();
+            //pickr.setColor("#00ff00", false);
+            //pickr.setColor(currentColor.toHEXA().toString(), true);
+        };
+
+        elSelect.addEventListener("change", function(){
+          if(elSelect.value){
+            let fhub = FeatureHub.getInstance();
+
+            fhub.unsubscribe('ledStatus');
+            fhub.subscribeToScript('ledStatus', elSelect.value, sTargetAppId, sTargetScriptName, onReceiveData);
+
+            let sFrom = "fhtp://featurehub/webapp/" + sSourceAppId,
+                sTo = "fhtp://featurehub/device/" + elSelect.value + "/" + sTargetAppId + "/" + sTargetScriptName;
+            fhub.sendToScript(sFrom, sTo, { "action":"STATUS" });
+          }
+        });
+
+        
+    
+        document.getElementById("testBtn").addEventListener("click", function(){
+            let fhub = FeatureHub.getInstance();
+
+            fhub.getClient().addEventListener("connect", function(){
+              fhub.devices(onReceiveDevices);
+            });
+
+            fhub.connect();
+        });
+
+        
+    </script>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.1/dist/js/bootstrap.bundle.min.js" integrity="sha384-gtEjrD/SeCtmISkJkNUaaKMoLD0//ElJ19smozuHV6z3Iehds+3Ulb9Bn9Plx0x4" crossorigin="anonymous"></script>
+    
+    
+  </body>
+</html>
