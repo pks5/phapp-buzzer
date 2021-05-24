@@ -7,6 +7,7 @@
 
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.1/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-+0n0xVW2eSR5OomGNYDnhzAbDsOXxcvSN1TPprVMTNDbiYZCxYbOOl7+AMvyTG2x" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@4.12.0/css/xterm.min.css">
 
     <title>RGB LED - Raspilab Experiments</title>
 
@@ -14,8 +15,8 @@
       #color{
         width:128px;
         height:128px;
-        margin:1rem auto;
       }
+        
         .color-button{
           width:24px;
           height:24px;
@@ -50,31 +51,56 @@
 
     
     <div class="container">
+      <div class="d-flex justify-content-between align-items-start">
       <h1>RGB LED</h1>
 
-      <select class="form-select" id="deviceSelect">
+      <select class="form-select w-25" id="deviceSelect">
         <option selected>Select Device</option>
       </select>
+    </div>
+
+      <div id="modes-container">
+        <ul class="nav nav-pills" id="modes">
+          <li class="nav-item">
+            <a class="nav-link" href="#" data-mode="OFF">OFF</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="#" data-mode="ON">ON</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="#" data-mode="BLINK">BLINK</a>
+          </li>
+        </ul>
+      </div>
 
       <div id="color">
 
       </div>
 
-      <div class="buttons">
-        <button class="color-button" data-color="red"></button>
-        <button class="color-button" data-color="green"></button>
-        <button class="color-button" data-color="blue"></button>
-        <button class="color-button" data-color="yellow"></button>
-        <button class="color-button" data-color="magenta"></button>
+      <div id="colors">
+        
       </div>
+
+      <div id="xterm-container"></div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/xterm@4.12.0/lib/xterm.min.js"></script>
+    
     <script src="https://cdn.jsdelivr.net/npm/@stomp/stompjs@6.1.0/bundles/stomp.umd.min.js"></script>
-
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.1/dist/js/bootstrap.bundle.min.js" integrity="sha384-gtEjrD/SeCtmISkJkNUaaKMoLD0//ElJ19smozuHV6z3Iehds+3Ulb9Bn9Plx0x4" crossorigin="anonymous"></script>
+    
     <script>
+        const term = new Terminal();
+        term.open(document.getElementById('xterm-container'));
+
         let sTargetAppId = "net.featurehub.phapp.sys";
         let sTargetScriptName = "rgbled.py";
         let sSourceAppId = "net.raspilab.webapp.rgbled";
+
+        let sFrom = "fhtp://webapp/" + sSourceAppId,
+        sTo = "fhtp://device/" + "{machineId}" + "/sendMessage?app=" + encodeURIComponent(sTargetAppId) + "&script=" + encodeURIComponent(sTargetScriptName);
+            
+
         let oFeatureHub;
 
         let fnConnect = function(){
@@ -83,11 +109,11 @@
                 redirectUri: location.origin + location.pathname
             });
 
-            oFeatureHub.getClient().addEventListener("connect", function(){
+            oFeatureHub.connect(function(){
                 oFeatureHub.devices(onReceiveDevices);
-            });
 
-            oFeatureHub.connect();
+                term.write("Connected.");
+            });
         };
 
         let scriptLocation = 'https://my.featurehub.net/lib/v1/fhub.js';
@@ -101,25 +127,41 @@
         script.addEventListener('load', fnConnect);
         document.body.appendChild(script);
 
-        let aColorFields = document.querySelectorAll(".color-button");
-        for(let i=0; i < aColorFields.length; i++){
-          aColorFields[i].style.backgroundColor = aColorFields[i].dataset.color;
-          aColorFields[i].addEventListener("click", function(){
-            let sFrom = "fhtp://webapp/" + sSourceAppId,
-                sTo = "fhtp://device/" + elSelect.value + "/sendMessage?app=" + sTargetAppId + "&script=" + sTargetScriptName;
-            oFeatureHub.sendToScript(sFrom, sTo, { "mode":"ON", color:this.dataset.color });
-          });
-        }
+        
         
         let elSelect = document.getElementById("deviceSelect");
         
-        let onReceiveDevices = function(oData){  
+        let onReceiveDevices = function(oData){
+          let sCurrentValue = elSelect.value,
+              bCurrentValueFound = false;
+
+          elSelect.innerHTML = "";
+
+          elOpt = document.createElement('option');
+          elOpt.innerHTML = "Select Device";
+          elSelect.appendChild(elOpt);
+
           for (let i = 0; i<oData.devices.length; i++){
             let oDevice = oData.devices[i], 
                 elOpt = document.createElement('option');
+            
             elOpt.value = oDevice.machineId;
-            elOpt.innerHTML = oDevice.hostName + " (" + oDevice.lastComConnectDate + ")";
+            elOpt.innerHTML = oDevice.hostName;
             elSelect.appendChild(elOpt);
+
+            if(sCurrentValue && oDevice.machineId === sCurrentValue){
+              bCurrentValueFound = true;
+              elOpt.selected = true;
+            }
+          }
+
+          if(!bCurrentValueFound){
+            sCurrentValue = null;
+          }
+
+          if(!sCurrentValue && oData.devices.length === 1){
+            elSelect.value = oData.devices[0].machineId;
+            onChangeSelectDevice();
           }
         };
 
@@ -132,37 +174,246 @@
             if(sPhappId === "net.featurehub.phapp.sys"){
                 console.log('S', oData, mHeaders);
                 
-                let sMode = oData.status.mode;
-                if(sMode === "ON"){
-                  document.getElementById("color").style.backgroundColor = oData.status.color;
-                }
-                else if(sMode  === "OFF"){
-                  document.getElementById("color").style.backgroundColor = "transparent";
+                if(oData.state){
+                  let sMode = oData.state.mode;
+                  
+                  if(sMode  === "OFF"){
+                    showColor("transparent");
+                  }
+                  else if(oData.state.color){
+                    showColor(oData.state.color);
+                  }
+                  
+                  showMode(sMode);
                 }
             }
         };
 
-        elSelect.addEventListener("change", function(){
+        let onChangeSelectDevice = function(){
           if(elSelect.value){
+            oFeatureHub.unsubscribe('deviceConsole');
+            oFeatureHub.subscribeToDevice('deviceConsole', elSelect.value + "/console", function(oData, mHeaders){
+                term.write(oData); 
+            });
+
             oFeatureHub.unsubscribe('deviceStatus');
             oFeatureHub.subscribeToDevice('deviceStatus', elSelect.value, onReceiveData);
 
-            let sFrom = "fhtp://webapp/" + sSourceAppId,
-                sTo = "fhtp://device/" + elSelect.value + "/sendMessage?app=" + encodeURIComponent(sTargetAppId) + "&script=" + encodeURIComponent(sTargetScriptName);
-            oFeatureHub.sendToScript(sFrom, sTo, { "action":"STATUS" });
+            oFeatureHub.sendToScript(sFrom, sTo.replace("{machineId}", elSelect.value), { "action":"STATUS" });
           }
-        });
+        };
 
+        elSelect.addEventListener("change", onChangeSelectDevice);
+
+        //Modes
+        let elModes = document.getElementById("modes");
+        let elColor = document.getElementById("color");  
         
-    
-        document.getElementById("testBtn").addEventListener("click", function(){
+        let showMode = function(sMode){
             
+            let aModes = elModes.querySelectorAll(".nav-item");
+            for(let i = 0; i < aModes.length; i++){
+              let elLink = aModes[i].querySelector(".nav-link");
+              if(elLink.dataset.mode === sMode){
+                  elLink.classList.add("active");
+              }
+              else{
+                  elLink.classList.remove("active");
+              }
+            }
+        };
+
+        let showColor = function(sColor){
+            elColor.style.backgroundColor = sColor;
+            elColor.dataset.color = sColor;
+        }
+
+        let getMode = function(){
+            return elModes.querySelector(".nav-link.active").dataset.mode;
+        };
+
+        let getColor = function(){
+            let sColor = elColor.dataset.color;
+            if(sColor === "transparent"){
+              sColor = "white";
+            }
+            return sColor;
+        };
+
+        elModes.addEventListener("click", function(ev){
+            oFeatureHub.sendToScript(sFrom, sTo.replace("{machineId}", elSelect.value), { "mode": ev.target.dataset.mode, color:getColor() });
         });
 
-        
+        //Colors
+        const aColors = {
+          "aliceblue": "#f0f8ff",
+          "antiquewhite": "#faebd7",
+          "aqua": "#00ffff",
+          "aquamarine": "#7fffd4",
+          "azure": "#f0ffff",
+          "beige": "#f5f5dc",
+          "bisque": "#ffe4c4",
+          "black": "#000000",
+          "blanchedalmond": "#ffebcd",
+          "blue": "#0000ff",
+          "blueviolet": "#8a2be2",
+          "brown": "#a52a2a",
+          "burlywood": "#deb887",
+          "cadetblue": "#5f9ea0",
+          "chartreuse": "#7fff00",
+          "chocolate": "#d2691e",
+          "coral": "#ff7f50",
+          "cornflowerblue": "#6495ed",
+          "cornsilk": "#fff8dc",
+          "crimson": "#dc143c",
+          "cyan": "#00ffff",
+          "darkblue": "#00008b",
+          "darkcyan": "#008b8b",
+          "darkgoldenrod": "#b8860b",
+          "darkgray": "#a9a9a9",
+          "darkgreen": "#006400",
+          "darkgrey": "#a9a9a9",
+          "darkkhaki": "#bdb76b",
+          "darkmagenta": "#8b008b",
+          "darkolivegreen": "#556b2f",
+          "darkorange": "#ff8c00",
+          "darkorchid": "#9932cc",
+          "darkred": "#8b0000",
+          "darksalmon": "#e9967a",
+          "darkseagreen": "#8fbc8f",
+          "darkslateblue": "#483d8b",
+          "darkslategray": "#2f4f4f",
+          "darkslategrey": "#2f4f4f",
+          "darkturquoise": "#00ced1",
+          "darkviolet": "#9400d3",
+          "deeppink": "#ff1493",
+          "deepskyblue": "#00bfff",
+          "dimgray": "#696969",
+          "dimgrey": "#696969",
+          "dodgerblue": "#1e90ff",
+          "firebrick": "#b22222",
+          "floralwhite": "#fffaf0",
+          "forestgreen": "#228b22",
+          "fuchsia": "#ff00ff",
+          "gainsboro": "#dcdcdc",
+          "ghostwhite": "#f8f8ff",
+          "goldenrod": "#daa520",
+          "gold": "#ffd700",
+          "gray": "#808080",
+          "green": "#008000",
+          "greenyellow": "#adff2f",
+          "grey": "#808080",
+          "honeydew": "#f0fff0",
+          "hotpink": "#ff69b4",
+          "indianred": "#cd5c5c",
+          "indigo": "#4b0082",
+          "ivory": "#fffff0",
+          "khaki": "#f0e68c",
+          "lavenderblush": "#fff0f5",
+          "lavender": "#e6e6fa",
+          "lawngreen": "#7cfc00",
+          "lemonchiffon": "#fffacd",
+          "lightblue": "#add8e6",
+          "lightcoral": "#f08080",
+          "lightcyan": "#e0ffff",
+          "lightgoldenrodyellow": "#fafad2",
+          "lightgray": "#d3d3d3",
+          "lightgreen": "#90ee90",
+          "lightgrey": "#d3d3d3",
+          "lightpink": "#ffb6c1",
+          "lightsalmon": "#ffa07a",
+          "lightseagreen": "#20b2aa",
+          "lightskyblue": "#87cefa",
+          "lightslategray": "#778899",
+          "lightslategrey": "#778899",
+          "lightsteelblue": "#b0c4de",
+          "lightyellow": "#ffffe0",
+          "lime": "#00ff00",
+          "limegreen": "#32cd32",
+          "linen": "#faf0e6",
+          "magenta": "#ff00ff",
+          "maroon": "#800000",
+          "mediumaquamarine": "#66cdaa",
+          "mediumblue": "#0000cd",
+          "mediumorchid": "#ba55d3",
+          "mediumpurple": "#9370db",
+          "mediumseagreen": "#3cb371",
+          "mediumslateblue": "#7b68ee",
+          "mediumspringgreen": "#00fa9a",
+          "mediumturquoise": "#48d1cc",
+          "mediumvioletred": "#c71585",
+          "midnightblue": "#191970",
+          "mintcream": "#f5fffa",
+          "mistyrose": "#ffe4e1",
+          "moccasin": "#ffe4b5",
+          "navajowhite": "#ffdead",
+          "navy": "#000080",
+          "oldlace": "#fdf5e6",
+          "olive": "#808000",
+          "olivedrab": "#6b8e23",
+          "orange": "#ffa500",
+          "orangered": "#ff4500",
+          "orchid": "#da70d6",
+          "palegoldenrod": "#eee8aa",
+          "palegreen": "#98fb98",
+          "paleturquoise": "#afeeee",
+          "palevioletred": "#db7093",
+          "papayawhip": "#ffefd5",
+          "peachpuff": "#ffdab9",
+          "peru": "#cd853f",
+          "pink": "#ffc0cb",
+          "plum": "#dda0dd",
+          "powderblue": "#b0e0e6",
+          "purple": "#800080",
+          "rebeccapurple": "#663399",
+          "red": "#ff0000",
+          "rosybrown": "#bc8f8f",
+          "royalblue": "#4169e1",
+          "saddlebrown": "#8b4513",
+          "salmon": "#fa8072",
+          "sandybrown": "#f4a460",
+          "seagreen": "#2e8b57",
+          "seashell": "#fff5ee",
+          "sienna": "#a0522d",
+          "silver": "#c0c0c0",
+          "skyblue": "#87ceeb",
+          "slateblue": "#6a5acd",
+          "slategray": "#708090",
+          "slategrey": "#708090",
+          "snow": "#fffafa",
+          "springgreen": "#00ff7f",
+          "steelblue": "#4682b4",
+          "tan": "#d2b48c",
+          "teal": "#008080",
+          "thistle": "#d8bfd8",
+          "tomato": "#ff6347",
+          "turquoise": "#40e0d0",
+          "violet": "#ee82ee",
+          "wheat": "#f5deb3",
+          "white": "#ffffff",
+          "whitesmoke": "#f5f5f5",
+          "yellow": "#ffff00",
+          "yellowgreen": "#9acd32"
+        };
+
+        let aColorKeys = Object.keys(aColors);
+
+        let elColors = document.getElementById("colors");
+        for(let i=0; i < aColorKeys.length; i++){
+          let sColor = aColorKeys[i];
+
+          let elColorBtn = document.createElement("button");
+          elColorBtn.dataset.color = sColor;
+          elColorBtn.className = "color-button";
+          //elColorBtn.textContent = sColor;
+          elColorBtn.style.backgroundColor = sColor;
+          elColorBtn.addEventListener("click", function(){
+              oFeatureHub.sendToScript(sFrom, sTo.replace("{machineId}", elSelect.value), { "mode": getMode(), color:this.dataset.color });
+          });
+          elColors.appendChild(elColorBtn);
+        }
     </script>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.1/dist/js/bootstrap.bundle.min.js" integrity="sha384-gtEjrD/SeCtmISkJkNUaaKMoLD0//ElJ19smozuHV6z3Iehds+3Ulb9Bn9Plx0x4" crossorigin="anonymous"></script>
     
     
   </body>
