@@ -23,26 +23,50 @@
     </style>
   </head>
   <body>
-    <h1>RGB LED</h1>
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+      <div class="container-fluid">
+        <a class="navbar-brand" href="#">Raspilab Experiments</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+          <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+          <ul class="navbar-nav">
+            <li class="nav-item">
+              <a class="nav-link active" aria-current="page" href="#">Home</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="#">Features</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="#">Pricing</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link disabled" href="#" tabindex="-1" aria-disabled="true">Disabled</a>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </nav>
 
-    <button id="loginBtn" class="btn btn-primary">Login</button>
-    <button id="extractBtn" class="btn btn-primary">Extract</button>
-    <button id="testBtn" class="btn btn-primary">Test</button>
+    
+    <div class="container">
+      <h1>RGB LED</h1>
 
-    <select class="form-select" id="deviceSelect">
-      <option selected>Select Device</option>
-    </select>
+      <select class="form-select" id="deviceSelect">
+        <option selected>Select Device</option>
+      </select>
 
-    <div id="color">
+      <div id="color">
 
-    </div>
+      </div>
 
-    <div class="buttons">
-      <button class="color-button" data-color="red"></button>
-      <button class="color-button" data-color="green"></button>
-      <button class="color-button" data-color="blue"></button>
-      <button class="color-button" data-color="yellow"></button>
-      <button class="color-button" data-color="magenta"></button>
+      <div class="buttons">
+        <button class="color-button" data-color="red"></button>
+        <button class="color-button" data-color="green"></button>
+        <button class="color-button" data-color="blue"></button>
+        <button class="color-button" data-color="yellow"></button>
+        <button class="color-button" data-color="magenta"></button>
+      </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@stomp/stompjs@6.1.0/bundles/stomp.umd.min.js"></script>
@@ -50,7 +74,21 @@
     <script>
         let sTargetAppId = "net.featurehub.phapp.sys";
         let sTargetScriptName = "rgbled.py";
-        let sSourceAppId = "net.featurehub.system.check.led";
+        let sSourceAppId = "net.raspilab.webapp.rgbled";
+        let oFeatureHub;
+
+        let fnConnect = function(){
+            oFeatureHub = new FeatureHub({
+                clientId: 'phapp_buzzer', 
+                redirectUri: location.origin + location.pathname
+            });
+
+            oFeatureHub.getClient().addEventListener("connect", function(){
+                oFeatureHub.devices(onReceiveDevices);
+            });
+
+            oFeatureHub.connect();
+        };
 
         let scriptLocation = 'https://my.featurehub.net/lib/v1/fhub.js';
 
@@ -60,23 +98,16 @@
 
         const script = document.createElement('script');
         script.src = scriptLocation;
+        script.addEventListener('load', fnConnect);
         document.body.appendChild(script);
-
-        document.getElementById("loginBtn").addEventListener("click", function(){
-           FeatureHub.getInstance().requestToken('phapp_buzzer', location.origin + location.pathname);
-        });
-
-        document.getElementById("extractBtn").addEventListener("click", function(){
-          FeatureHub.getInstance().extractToken();
-        });
 
         let aColorFields = document.querySelectorAll(".color-button");
         for(let i=0; i < aColorFields.length; i++){
           aColorFields[i].style.backgroundColor = aColorFields[i].dataset.color;
           aColorFields[i].addEventListener("click", function(){
-            let sFrom = "fhtp://featurehub/webapp/" + sSourceAppId,
-                sTo = "fhtp://featurehub/device/" + elSelect.value + "/" + sTargetAppId + "/" + sTargetScriptName;
-            FeatureHub.getInstance().sendToScript(sFrom, sTo, { "mode":"ON", color:this.dataset.color });
+            let sFrom = "fhtp://webapp/" + sSourceAppId,
+                sTo = "fhtp://device/" + elSelect.value + "/sendMessage?app=" + sTargetAppId + "&script=" + sTargetScriptName;
+            oFeatureHub.sendToScript(sFrom, sTo, { "mode":"ON", color:this.dataset.color });
           });
         }
         
@@ -94,44 +125,38 @@
 
         
 
-        let onReceiveData = function(oData){
-            console.log('S', oData);
-            
-            let sMode = oData.body.status.mode;
-            if(sMode === "ON"){
-              document.getElementById("color").style.backgroundColor = oData.body.status.color;
+        let onReceiveData = function(oData, mHeaders){
+            let to = new URL(mHeaders["fh-from"]),
+                sPhappId = to.searchParams.get("app");
+
+            if(sPhappId === "net.featurehub.phapp.sys"){
+                console.log('S', oData, mHeaders);
+                
+                let sMode = oData.status.mode;
+                if(sMode === "ON"){
+                  document.getElementById("color").style.backgroundColor = oData.status.color;
+                }
+                else if(sMode  === "OFF"){
+                  document.getElementById("color").style.backgroundColor = "transparent";
+                }
             }
-            else if(sMode  === "OFF"){
-              document.getElementById("color").style.backgroundColor = "transparent";
-            }
-            //let currentColor = pickr.getColor();
-            //pickr.setColor("#00ff00", false);
-            //pickr.setColor(currentColor.toHEXA().toString(), true);
         };
 
         elSelect.addEventListener("change", function(){
           if(elSelect.value){
-            let fhub = FeatureHub.getInstance();
+            oFeatureHub.unsubscribe('deviceStatus');
+            oFeatureHub.subscribeToDevice('deviceStatus', elSelect.value, onReceiveData);
 
-            fhub.unsubscribe('ledStatus');
-            fhub.subscribeToScript('ledStatus', elSelect.value, sTargetAppId, sTargetScriptName, onReceiveData);
-
-            let sFrom = "fhtp://featurehub/webapp/" + sSourceAppId,
-                sTo = "fhtp://featurehub/device/" + elSelect.value + "/" + sTargetAppId + "/" + sTargetScriptName;
-            fhub.sendToScript(sFrom, sTo, { "action":"STATUS" });
+            let sFrom = "fhtp://webapp/" + sSourceAppId,
+                sTo = "fhtp://device/" + elSelect.value + "/sendMessage?app=" + encodeURIComponent(sTargetAppId) + "&script=" + encodeURIComponent(sTargetScriptName);
+            oFeatureHub.sendToScript(sFrom, sTo, { "action":"STATUS" });
           }
         });
 
         
     
         document.getElementById("testBtn").addEventListener("click", function(){
-            let fhub = FeatureHub.getInstance();
-
-            fhub.getClient().addEventListener("connect", function(){
-              fhub.devices(onReceiveDevices);
-            });
-
-            fhub.connect();
+            
         });
 
         
