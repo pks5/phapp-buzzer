@@ -12,80 +12,76 @@
     <title>RGB LED - Raspilab Experiments</title>
 
     <style>
+      body{
+        background-image: url('https://www.raspilab.net/apps/prod_nb/nb_site/img/connect.png');
+      }
       #color{
         width:128px;
         height:128px;
       }
         
         .color-button{
-          width:24px;
-          height:24px;
+          width:32px;
+          height:32px;
+        }
+
+        #brick{
+          padding:20px;
+        }
+        #brick-svg{
+          width:240px;
         }
     </style>
   </head>
   <body>
-    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
       <div class="container-fluid">
-        <a class="navbar-brand" href="#">Raspilab Experiments</a>
-        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
-          <span class="navbar-toggler-icon"></span>
-        </button>
-        <div class="collapse navbar-collapse" id="navbarNav">
-          <ul class="navbar-nav">
-            <li class="nav-item">
-              <a class="nav-link active" aria-current="page" href="#">Home</a>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link" href="#">Features</a>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link" href="#">Pricing</a>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link disabled" href="#" tabindex="-1" aria-disabled="true">Disabled</a>
-            </li>
-          </ul>
-        </div>
+        <a class="navbar-brand" href="#">
+          <img src="https://www.raspilab.net/apps/prod_nb/nb_shared/img/raspilab-logo_256.png" alt="" width="27" height="27" class="d-inline-block align-text-top">  
+          RGB LED</a>
+        
+        
+        <select class="form-select w-25" id="deviceSelect">
+          <option selected>Select Device</option>
+        </select>
       </div>
     </nav>
 
     
     <div class="container">
-      <div class="d-flex justify-content-between align-items-start">
-      <h1>RGB LED</h1>
-
-      <select class="form-select w-25" id="deviceSelect">
-        <option selected>Select Device</option>
-      </select>
-    </div>
-
-      <div id="modes-container">
-        <ul class="nav nav-pills" id="modes">
-          <li class="nav-item">
-            <a class="nav-link" href="#" data-mode="OFF">OFF</a>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link" href="#" data-mode="ON">ON</a>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link" href="#" data-mode="BLINK">BLINK</a>
-          </li>
-        </ul>
+      
+      <div class="d-flex mt-2">
+      <div id="brick">
+          <object data="block-4x4-3.svg" type="image/svg+xml" id="brick-svg"></object>
       </div>
+      <div class="ms-4">
+        <div id="modes-container">
+          <ul class="nav nav-pills" id="modes">
+            <li class="nav-item">
+              <a class="nav-link active" href="#" data-mode="OFF">OFF</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="#" data-mode="ON">ON</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="#" data-mode="BLINK">BLINK</a>
+            </li>
+          </ul>
+        </div>
 
-      <div id="color">
-
-      </div>
-
-      <div id="colors">
+        <div id="colors" class="mt-2">
         
+        </div>
       </div>
+      
+    </div>
 
       <div id="xterm-container"></div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/xterm@4.12.0/lib/xterm.min.js"></script>
-    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tinycolor/1.4.1/tinycolor.min.js"></script>
+
     <script src="https://cdn.jsdelivr.net/npm/@stomp/stompjs@6.1.0/bundles/stomp.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.1/dist/js/bootstrap.bundle.min.js" integrity="sha384-gtEjrD/SeCtmISkJkNUaaKMoLD0//ElJ19smozuHV6z3Iehds+3Ulb9Bn9Plx0x4" crossorigin="anonymous"></script>
     
@@ -93,24 +89,22 @@
         const term = new Terminal();
         term.open(document.getElementById('xterm-container'));
 
-        let sTargetAppId = "net.featurehub.phapp.sys";
-        let sTargetScriptName = "rgbled.py";
-        let sSourceAppId = "net.raspilab.webapp.rgbled";
-
-        let sFrom = "fhtp://webapp/" + sSourceAppId,
-        sTo = "fhtp://device/" + "{machineId}" + "/sendMessage?app=" + encodeURIComponent(sTargetAppId) + "&script=" + encodeURIComponent(sTargetScriptName);
+        
+        
             
 
         let oFeatureHub;
 
         let fnConnect = function(){
+            DeviceSelection.init("deviceSelect");
+            
             oFeatureHub = new FeatureHub({
-                clientId: 'phapp_buzzer', 
-                redirectUri: location.origin + location.pathname
+                appId: "net.raspilab.webapp.rgbled",
+                clientId: 'phapp_buzzer'
             });
 
             oFeatureHub.connect(function(){
-                oFeatureHub.devices(onReceiveDevices);
+                oFeatureHub.devices(DeviceSelection.onReceiveDevices);
 
                 term.write("Connected.");
             });
@@ -127,12 +121,18 @@
         script.addEventListener('load', fnConnect);
         document.body.appendChild(script);
 
-        
-        
-        let elSelect = document.getElementById("deviceSelect");
-        
-        let onReceiveDevices = function(oData){
-          let sCurrentValue = elSelect.value,
+        let DeviceSelection = {};
+
+        DeviceSelection.init = function(sId){
+            let elSelect = document.getElementById("deviceSelect");
+            elSelect.addEventListener("change", DeviceSelection.onSelectDevice);
+
+            DeviceSelection.elSelect = elSelect;
+        };
+
+        DeviceSelection.onReceiveDevices = function(oData){
+          let elSelect = DeviceSelection.elSelect,
+              sCurrentValue = elSelect.value,
               bCurrentValueFound = false;
 
           elSelect.innerHTML = "";
@@ -161,11 +161,41 @@
 
           if(!sCurrentValue && oData.devices.length === 1){
             elSelect.value = oData.devices[0].machineId;
-            onChangeSelectDevice();
+            DeviceSelection.onSelectDevice();
+          }
+        };
+
+        DeviceSelection.onSelectDevice = function(){
+          let elSelect = DeviceSelection.elSelect;
+          if(elSelect.value){
+            oFeatureHub.unsubscribe('deviceConsole');
+            oFeatureHub.subscribe('deviceConsole', elSelect.value + "/console", function(oData, mHeaders){
+                term.write(oData); 
+            });
+
+            oFeatureHub.unsubscribe('deviceStatus');
+            oFeatureHub.subscribe('deviceStatus', elSelect.value, onReceiveData);
+
+            oFeatureHub.setDefaultTarget({
+              device: elSelect.value, 
+              app: "net.featurehub.phapp.sys", 
+              script: "rgbled.py"
+            })
+
+            oFeatureHub.send({ method:"sendMessage" }, { "action":"STATUS" });
           }
         };
 
         
+
+        let RgbLed = {};
+        RgbLed.getColor = function(){
+            return RgbLed.m_sColor;
+        };
+
+        RgbLed.setColor = function(sColor){
+            RgbLed.m_sColor = sColor;
+        };
 
         let onReceiveData = function(oData, mHeaders){
             let to = new URL(mHeaders["fh-from"]),
@@ -175,13 +205,20 @@
                 console.log('S', oData, mHeaders);
                 
                 if(oData.state){
-                  let sMode = oData.state.mode;
+                  let sMode = oData.state.mode,
+                      sColor = oData.state.color;
+
+                  if(!sColor){
+                      sColor = "white";
+                  }
                   
                   if(sMode  === "OFF"){
-                    showColor("transparent");
+                    RgbLed.setColor();
+                    showColor("darkgray");
                   }
-                  else if(oData.state.color){
-                    showColor(oData.state.color);
+                  else{
+                    RgbLed.setColor(sColor);
+                    showColor(sColor);
                   }
                   
                   showMode(sMode);
@@ -189,26 +226,8 @@
             }
         };
 
-        let onChangeSelectDevice = function(){
-          if(elSelect.value){
-            oFeatureHub.unsubscribe('deviceConsole');
-            oFeatureHub.subscribeToDevice('deviceConsole', elSelect.value + "/console", function(oData, mHeaders){
-                term.write(oData); 
-            });
-
-            oFeatureHub.unsubscribe('deviceStatus');
-            oFeatureHub.subscribeToDevice('deviceStatus', elSelect.value, onReceiveData);
-
-            oFeatureHub.sendToScript(sFrom, sTo.replace("{machineId}", elSelect.value), { "action":"STATUS" });
-          }
-        };
-
-        elSelect.addEventListener("change", onChangeSelectDevice);
-
         //Modes
         let elModes = document.getElementById("modes");
-        let elColor = document.getElementById("color");  
-        
         let showMode = function(sMode){
             
             let aModes = elModes.querySelectorAll(".nav-item");
@@ -222,39 +241,74 @@
               }
             }
         };
-
-        let showColor = function(sColor){
-            elColor.style.backgroundColor = sColor;
-            elColor.dataset.color = sColor;
-        }
-
         let getMode = function(){
             return elModes.querySelector(".nav-link.active").dataset.mode;
         };
 
-        let getColor = function(){
-            let sColor = elColor.dataset.color;
-            if(sColor === "transparent"){
-              sColor = "white";
+        let elSvg = document.getElementById("brick-svg");
+        let showColor = function(sColor){
+            let oColor = tinycolor(sColor);
+
+            // New, darker color
+            let sDarkerColor1 = oColor.darken(5).toString();
+            let sDarkerColor2 = oColor.darken(8).toString();
+
+            elSvg.style.filter = "drop-shadow( 0px 0px 25px " + sColor + ")";
+            
+            let elSvgContent = elSvg.contentDocument;
+
+            elBrickSideLeft = elSvgContent.querySelector("path[*|label='Brick Side Left']"),
+            elBrickSideRight = elSvgContent.querySelector("path[*|label='Brick Side Right']"),
+            elBrickTop = elSvgContent.querySelector("path[*|label='Brick Top']");
+
+            elBrickSideLeft.style.stroke=sDarkerColor2;
+            elBrickSideLeft.style.fill=sDarkerColor1;
+
+            elBrickSideRight.style.stroke=sDarkerColor2;
+            elBrickSideRight.style.fill=sDarkerColor2;
+
+            elBrickTop.style.stroke=sDarkerColor2;
+            elBrickTop.style.fill=sColor;
+            
+            let aKnobTops = elSvgContent.querySelectorAll("path[*|label='Knob Top']");
+            for(let i=0; i<aKnobTops.length; i++){
+              aKnobTops[i].style.stroke=sDarkerColor2;
+              aKnobTops[i].style.fill=sColor;
             }
-            return sColor;
-        };
+
+            let aKnobSides = elSvgContent.querySelectorAll("path[*|label='Knob Side']");
+            for(let i=0; i<aKnobSides.length; i++){
+              aKnobSides[i].style.stroke=sDarkerColor2;
+              aKnobSides[i].style.fill=sDarkerColor1;
+            }
+        }
+
+        
+    
+                // It's important to add an load event listener to the object,
+                // as it will load the svg doc asynchronously
+                elSvg.addEventListener("load",function(){
+    
+                  showColor("transparent");
+                    
+                }, false);
+        
 
         elModes.addEventListener("click", function(ev){
-            oFeatureHub.sendToScript(sFrom, sTo.replace("{machineId}", elSelect.value), { "mode": ev.target.dataset.mode, color:getColor() });
+            oFeatureHub.send({ method:"sendMessage" }, { "mode": ev.target.dataset.mode, color:RgbLed.getColor() });
         });
 
         //Colors
         const aColors = {
-          "aliceblue": "#f0f8ff",
-          "antiquewhite": "#faebd7",
+          //"aliceblue": "#f0f8ff",
+          //"antiquewhite": "#faebd7",
           "aqua": "#00ffff",
           "aquamarine": "#7fffd4",
-          "azure": "#f0ffff",
-          "beige": "#f5f5dc",
-          "bisque": "#ffe4c4",
-          "black": "#000000",
-          "blanchedalmond": "#ffebcd",
+          //"azure": "#f0ffff",
+          //"beige": "#f5f5dc",
+          //"bisque": "#ffe4c4",
+          //"black": "#000000",
+          //"blanchedalmond": "#ffebcd",
           "blue": "#0000ff",
           "blueviolet": "#8a2be2",
           "brown": "#a52a2a",
@@ -264,15 +318,15 @@
           "chocolate": "#d2691e",
           "coral": "#ff7f50",
           "cornflowerblue": "#6495ed",
-          "cornsilk": "#fff8dc",
+          //"cornsilk": "#fff8dc",
           "crimson": "#dc143c",
           "cyan": "#00ffff",
           "darkblue": "#00008b",
           "darkcyan": "#008b8b",
           "darkgoldenrod": "#b8860b",
-          "darkgray": "#a9a9a9",
+          //"darkgray": "#a9a9a9",
           "darkgreen": "#006400",
-          "darkgrey": "#a9a9a9",
+          //"darkgrey": "#a9a9a9",
           "darkkhaki": "#bdb76b",
           "darkmagenta": "#8b008b",
           "darkolivegreen": "#556b2f",
@@ -283,36 +337,36 @@
           "darkseagreen": "#8fbc8f",
           "darkslateblue": "#483d8b",
           "darkslategray": "#2f4f4f",
-          "darkslategrey": "#2f4f4f",
+          //"darkslategrey": "#2f4f4f",
           "darkturquoise": "#00ced1",
           "darkviolet": "#9400d3",
           "deeppink": "#ff1493",
           "deepskyblue": "#00bfff",
           "dimgray": "#696969",
-          "dimgrey": "#696969",
+          //"dimgrey": "#696969",
           "dodgerblue": "#1e90ff",
           "firebrick": "#b22222",
-          "floralwhite": "#fffaf0",
+          //"floralwhite": "#fffaf0",
           "forestgreen": "#228b22",
           "fuchsia": "#ff00ff",
           "gainsboro": "#dcdcdc",
-          "ghostwhite": "#f8f8ff",
+          //"ghostwhite": "#f8f8ff",
           "goldenrod": "#daa520",
           "gold": "#ffd700",
           "gray": "#808080",
           "green": "#008000",
           "greenyellow": "#adff2f",
           "grey": "#808080",
-          "honeydew": "#f0fff0",
+          //"honeydew": "#f0fff0",
           "hotpink": "#ff69b4",
           "indianred": "#cd5c5c",
           "indigo": "#4b0082",
-          "ivory": "#fffff0",
+          //"ivory": "#fffff0",
           "khaki": "#f0e68c",
-          "lavenderblush": "#fff0f5",
-          "lavender": "#e6e6fa",
+          //"lavenderblush": "#fff0f5",
+          //"lavender": "#e6e6fa",
           "lawngreen": "#7cfc00",
-          "lemonchiffon": "#fffacd",
+          //"lemonchiffon": "#fffacd",
           "lightblue": "#add8e6",
           "lightcoral": "#f08080",
           "lightcyan": "#e0ffff",
@@ -324,13 +378,13 @@
           "lightsalmon": "#ffa07a",
           "lightseagreen": "#20b2aa",
           "lightskyblue": "#87cefa",
-          "lightslategray": "#778899",
-          "lightslategrey": "#778899",
+          //"lightslategray": "#778899",
+          //"lightslategrey": "#778899",
           "lightsteelblue": "#b0c4de",
-          "lightyellow": "#ffffe0",
+          //"lightyellow": "#ffffe0",
           "lime": "#00ff00",
           "limegreen": "#32cd32",
-          "linen": "#faf0e6",
+          //"linen": "#faf0e6",
           "magenta": "#ff00ff",
           "maroon": "#800000",
           "mediumaquamarine": "#66cdaa",
@@ -343,12 +397,12 @@
           "mediumturquoise": "#48d1cc",
           "mediumvioletred": "#c71585",
           "midnightblue": "#191970",
-          "mintcream": "#f5fffa",
+          //"mintcream": "#f5fffa",
           "mistyrose": "#ffe4e1",
           "moccasin": "#ffe4b5",
           "navajowhite": "#ffdead",
           "navy": "#000080",
-          "oldlace": "#fdf5e6",
+          //"oldlace": "#fdf5e6",
           "olive": "#808000",
           "olivedrab": "#6b8e23",
           "orange": "#ffa500",
@@ -373,14 +427,14 @@
           "salmon": "#fa8072",
           "sandybrown": "#f4a460",
           "seagreen": "#2e8b57",
-          "seashell": "#fff5ee",
+          //"seashell": "#fff5ee",
           "sienna": "#a0522d",
           "silver": "#c0c0c0",
           "skyblue": "#87ceeb",
           "slateblue": "#6a5acd",
-          "slategray": "#708090",
-          "slategrey": "#708090",
-          "snow": "#fffafa",
+          //"slategray": "#708090",
+          //"slategrey": "#708090",
+          //"snow": "#fffafa",
           "springgreen": "#00ff7f",
           "steelblue": "#4682b4",
           "tan": "#d2b48c",
@@ -391,7 +445,7 @@
           "violet": "#ee82ee",
           "wheat": "#f5deb3",
           "white": "#ffffff",
-          "whitesmoke": "#f5f5f5",
+          //"whitesmoke": "#f5f5f5",
           "yellow": "#ffff00",
           "yellowgreen": "#9acd32"
         };
@@ -404,11 +458,12 @@
 
           let elColorBtn = document.createElement("button");
           elColorBtn.dataset.color = sColor;
+          elColorBtn.title = sColor;
           elColorBtn.className = "color-button";
           //elColorBtn.textContent = sColor;
           elColorBtn.style.backgroundColor = sColor;
           elColorBtn.addEventListener("click", function(){
-              oFeatureHub.sendToScript(sFrom, sTo.replace("{machineId}", elSelect.value), { "mode": getMode(), color:this.dataset.color });
+              oFeatureHub.send({ method:"sendMessage" }, { "mode": getMode(), color:this.dataset.color });
           });
           elColors.appendChild(elColorBtn);
         }

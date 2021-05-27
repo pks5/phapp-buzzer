@@ -1,14 +1,11 @@
 {
     "app" : {
-        "id": "com.waspiot.device.app.alarm",
-        "name": "Alarm System"
+        "id": "io.github.pks5.raspilab_exp.buzzer.phapp",
+        "name": "Buzzer"
     },
 
     "scripts" : [
-        { "path": "light.py", "executable": true, "gpio": "rpi2"},
-        { "path": "buzzer.py", "executable": true, "gpio": "rpi2"},
-        { "path": "shock-sensor.py", "executable": true, "gpio": "rpi2"},
-        { "path": "main.py", "executable": true, "gpio": "rpi2"}
+        { "path": "buzzer.py", "executable": true, "gpio": "rpi2"}
     ]
 
 }
