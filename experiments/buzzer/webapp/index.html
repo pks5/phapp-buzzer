@@ -89,6 +89,8 @@
                 clientId: 'phapp_buzzer'
             });
 
+            console.log(oFeatureHub)
+
             oFeatureHub.connect(function(){
                 oFeatureHub.devices(DeviceSelection.onReceiveDevices);
 
@@ -176,7 +178,7 @@
             };
 
             oFeatureHub.install(oInstallRequest, function(oResponse){
-              oFeatureHub.send({ method:"sendMessage" }, { "action":"STATUS" });
+              oFeatureHub.send({ method:"sendMessage" }, { "action":"INIT", pin:2 });
             }, console.error)
 
             
