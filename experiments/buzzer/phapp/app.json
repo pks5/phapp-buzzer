@@ -1,6 +1,6 @@
 {
     "app" : {
-        "id": "io.github.pks5.raspilab_exp.buzzer.phapp",
+        "id": "net.raspilab.experiments.buzzer.phapp",
         "name": "Buzzer"
     },
 

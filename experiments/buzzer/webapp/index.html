@@ -85,16 +85,16 @@
             DeviceSelection.init("deviceSelect");
             
             oFeatureHub = new FeatureHub({
-                appId: "io.github.pks5.raspilab_exp.buzzer.webapp",
+                appId: "net.raspilab.experiments.buzzer",
                 clientId: 'phapp_buzzer'
             });
 
             console.log(oFeatureHub)
 
-            oFeatureHub.connect(function(){
+            oFeatureHub.connect(function(oServerInfo){
                 oFeatureHub.devices(DeviceSelection.onReceiveDevices);
 
-                term.write("Connected.");
+                term.writeln("Connected to " + oServerInfo.webSocketUrl);
             });
         };
 
@@ -159,7 +159,7 @@
           if(sMachineId){
             oFeatureHub.unsubscribe('deviceConsole');
             oFeatureHub.subscribe('deviceConsole', sMachineId + "/console", function(oData, mHeaders){
-                term.write(oData); 
+                term.writeln(oData.args[0]); 
             });
 
             oFeatureHub.unsubscribe('deviceStatus');
@@ -167,7 +167,6 @@
 
             oFeatureHub.setDefaultTarget({
               device: sMachineId, 
-              app: "io.github.pks5.raspilab_exp.buzzer.phapp", 
               script: "buzzer.py"
             });
 
@@ -178,7 +177,11 @@
             };
 
             oFeatureHub.install(oInstallRequest, function(oResponse){
-              oFeatureHub.send({ method:"sendMessage" }, { "action":"INIT", pin:2 });
+              
+              oFeatureHub.send({ method:"restartApp" }, { "appId": "net.raspilab.experiments.buzzer.phapp"});
+              setTimeout(function(){
+                oFeatureHub.send({ method:"sendMessage" }, { "action":"INIT", pin:2 });
+              }, 5000);
             }, console.error)
 
             
@@ -189,7 +192,7 @@
             let to = new URL(mHeaders["fh-from"]),
                 sPhappId = to.searchParams.get("app");
 
-            if(sPhappId === "io.github.pks5.raspilab_exp.buzzer.phapp"){
+            if(sPhappId === "net.raspilab.experiments.buzzer.phapp"){
                 console.log('S', oData, mHeaders);
                 
                 if(oData.state){

@@ -8,7 +8,7 @@ class Buzzer:
     def __init__(self, notify_url=None):
         self.tonal_buzzer = None
         self.notify_url = notify_url
-        self.prev_state = None
+        self.state = {}
         
     def send(self, data):
         payload = {
@@ -39,7 +39,7 @@ class Buzzer:
             action = message_body["action"]
         
             if(action == "STATUS"):
-                self.send({'state' : self.prev_state})
+                self.send({'state' : self.state})
                 return
 
             if (action == "INIT"):
@@ -54,6 +54,9 @@ class Buzzer:
                 
                 self.tonal_buzzer = TonalBuzzer(pin_nr)
                 print("Created TonalBuzzer on pin " + str(pin_nr), flush=True)
+
+                self.state["pin"] = pin_nr
+                self.send({'state' : self.state}) 
                     
         if(self.tonal_buzzer == None):
             print("Warning: TonalBuzzer not initialized!", flush=True)
@@ -73,9 +76,8 @@ class Buzzer:
                 print("Error: invalid mode!", flush=True)
                 return
 
-            if('skip_state' not in message_body):
-                self.prev_state = message_body
-                self.send({'state' : message_body}) 
+            self.state["mode"] = mode
+            self.send({'state' : self.state}) 
     
 buzzer = Buzzer()
 
